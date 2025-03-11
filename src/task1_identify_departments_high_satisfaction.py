@@ -63,15 +63,15 @@ def identify_departments_high_satisfaction(df):
 
     # Round and format with percentage symbol
     result_df = result_df.withColumn(
-        "HighSatisfactionPercentage",
+        "HighSatisfactionPercentageFormatted",
         concat(format_string("%.2f", spark_round(col("HighSatisfactionPercentage"), 1)), lit("%"))
     )
 
-    
-    result_df = result_df.filter(col("HighSatisfactionPercentage") > lit("50%"))
+    # Filter based on numeric value (not the formatted string)
+    result_df = result_df.filter(col("HighSatisfactionPercentage") > 5)
     
     # Select relevant columns
-    result_df = result_df.select("Department", "HighSatisfactionPercentage")
+    result_df = result_df.select("Department", "HighSatisfactionPercentageFormatted")
     
     return result_df
 
