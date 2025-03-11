@@ -1,7 +1,6 @@
-# task2_valued_no_suggestions.py
-
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, count
+from pyspark.sql.functions import col
+import os
 
 def initialize_spark(app_name="Task2_Valued_No_Suggestions"):
     """
@@ -15,51 +14,32 @@ def initialize_spark(app_name="Task2_Valued_No_Suggestions"):
 def load_data(spark, file_path):
     """
     Load the employee data from a CSV file into a Spark DataFrame.
-
-    Parameters:
-        spark (SparkSession): The SparkSession object.
-        file_path (str): Path to the employee_data.csv file.
-
-    Returns:
-        DataFrame: Spark DataFrame containing employee data.
     """
-    schema = "EmployeeID INT, Department STRING, JobTitle STRING, SatisfactionRating INT, EngagementLevel STRING, ReportsConcerns BOOLEAN, ProvidedSuggestions BOOLEAN"
-    
-    df = spark.read.csv(file_path, header=True, schema=schema)
+    df = spark.read.csv(file_path, header=True, inferSchema=True)
     return df
 
 def identify_valued_no_suggestions(df):
     """
     Find employees who feel valued but have not provided suggestions and calculate their proportion.
-
-    Parameters:
-        df (DataFrame): Spark DataFrame containing employee data.
-
-    Returns:
-        tuple: Number of such employees and their proportion.
     """
-    # TODO: Implement Task 2
-    # Steps:
-    # 1. Identify employees with SatisfactionRating >= 4.
-    # 2. Among these, filter those with ProvidedSuggestions == False.
-    # 3. Calculate the number and proportion of these employees.
-    # 4. Return the results.
-
-    pass  # Remove this line after implementing the function
+    valued_no_suggestions = df.filter((col("SatisfactionRating") >= 4) & (col("ProvidedSuggestions") == False))
+    total_employees = df.count()
+    valued_no_suggestions_count = valued_no_suggestions.count()
+    proportion = (valued_no_suggestions_count / total_employees) * 100
+    
+    return valued_no_suggestions_count, round(proportion, 2)
 
 def write_output(number, proportion, output_path):
     """
-    Write the results to a text file.
-
-    Parameters:
-        number (int): Number of employees feeling valued without suggestions.
-        proportion (float): Proportion of such employees.
-        output_path (str): Path to save the output text file.
-
-    Returns:
-        None
+    Write the results to a text file in outputs/task2/valued_no_suggestions.txt.
     """
-    with open(output_path, 'w') as f:
+    # Ensure output directory exists
+    os.makedirs(output_path, exist_ok=True)
+    
+    output_file = os.path.join(output_path, "valued_no_suggestions.txt")
+
+    # Write output to the file
+    with open(output_file, 'w') as f:
         f.write(f"Number of Employees Feeling Valued without Suggestions: {number}\n")
         f.write(f"Proportion: {proportion}%\n")
 
@@ -67,23 +47,22 @@ def main():
     """
     Main function to execute Task 2.
     """
-    # Initialize Spark
     spark = initialize_spark()
     
-    # Define file paths
-    input_file = "/workspaces/Employee_Engagement_Analysis_Spark/input/employee_data.csv"
-    output_file = "/workspaces/Employee_Engagement_Analysis_Spark/outputs/task2/valued_no_suggestions.txt"
+    # Define paths
+    input_file = "/workspaces/spark-structured-api-employee-engagement-analysis-SriLaxmiPrasannaJoginipelli/employee_data.csv"
+    output_directory = "/workspaces/spark-structured-api-employee-engagement-analysis-SriLaxmiPrasannaJoginipelli/outputs/task2/valued_no_suggestions"
     
     # Load data
     df = load_data(spark, input_file)
     
-    # Perform Task 2
+    # Process data
     number, proportion = identify_valued_no_suggestions(df)
     
-    # Write the result to a text file
-    write_output(number, proportion, output_file)
+    # Write output
+    write_output(number, proportion, output_directory)
     
-    # Stop Spark Session
+    # Stop Spark
     spark.stop()
 
 if __name__ == "__main__":
