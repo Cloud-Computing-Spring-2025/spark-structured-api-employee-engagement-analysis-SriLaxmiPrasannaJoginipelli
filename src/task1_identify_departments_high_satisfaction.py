@@ -2,7 +2,7 @@
 
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import lit
-from pyspark.sql.functions import col, coalesce
+from pyspark.sql.functions import col, coalesce, concat, format_string
 from pyspark.sql.functions import col, count, when, round as spark_round
 
 
@@ -34,41 +34,44 @@ def load_data(spark, file_path):
 
 def identify_departments_high_satisfaction(df):
     """
-    Identify departments with more than 50% of employees having a Satisfaction Rating > 4 and Engagement Level 'High'.
+    Identify departments where more than 60% of employees have a Satisfaction Rating > 4 and Engagement Level 'High'.
     """
     # Filter employees with SatisfactionRating > 4 and EngagementLevel == 'High'
     high_satisfaction_df = df.filter((col("SatisfactionRating") > 4) & (col("EngagementLevel") == 'High'))
-    high_satisfaction_df.show()  # Debugging print
-
+    
     # Count total employees in each department
-    total_employees = df.groupBy("Department").count().alias("TotalEmployees")
-    total_employees.show()  # Debugging print
+    total_employees = df.groupBy("Department").count().withColumnRenamed("count", "TotalEmployeesCount")
     
     # Count high satisfaction employees in each department
-    high_satisfaction_count = high_satisfaction_df.groupBy("Department").count().alias("HighSatisfactionCount")
-    high_satisfaction_count.show()  # Debugging print
-    
-    # Rename the count columns to avoid ambiguity
-    total_employees = total_employees.withColumnRenamed("count", "TotalEmployeesCount")
-    high_satisfaction_count = high_satisfaction_count.withColumnRenamed("count", "HighSatisfactionCount")
+    high_satisfaction_count = high_satisfaction_df.groupBy("Department").count().withColumnRenamed("count", "HighSatisfactionCount")
     
     # Join the two DataFrames
     department_stats = total_employees.join(high_satisfaction_count, on="Department", how="left")
-    department_stats.show()  # Debugging print
     
-    # Replace NULL values in HighSatisfactionCount with 0 to avoid issues in percentage calculation
+    # Replace NULL values in HighSatisfactionCount with 0
     department_stats = department_stats.withColumn("HighSatisfactionCount", coalesce(col("HighSatisfactionCount"), lit(0)))
     
-    # Calculate the percentage of high satisfaction employees in each department
-    result_df = department_stats.withColumn("HighSatisfactionPercentage", 
-                                            (col("HighSatisfactionCount") / col("TotalEmployeesCount")) * 100)
-    result_df.show()  # Debugging print
+    # Ensure division is performed correctly
+    department_stats = department_stats.withColumn("TotalEmployeesCount", col("TotalEmployeesCount").cast("double"))
+    department_stats = department_stats.withColumn("HighSatisfactionCount", col("HighSatisfactionCount").cast("double"))
+
+    # Calculate percentage correctly
+    result_df = department_stats.withColumn(
+        "HighSatisfactionPercentage",
+        (col("HighSatisfactionCount") / col("TotalEmployeesCount")) * 100
+    )
+
+    # Round and format with percentage symbol
+    result_df = result_df.withColumn(
+        "HighSatisfactionPercentage",
+        concat(format_string("%.2f", spark_round(col("HighSatisfactionPercentage"), 1)), lit("%"))
+    )
+
     
-    # Filter departments where the percentage exceeds 50%
-    result_df = result_df.filter(col("HighSatisfactionPercentage") > 5)
+    result_df = result_df.filter(col("HighSatisfactionPercentage") > lit("50%"))
     
-    # Select relevant columns and round the percentage to 2 decimal places
-    result_df = result_df.select("Department", spark_round("HighSatisfactionPercentage", 2).alias("HighSatisfactionPercentage"))
+    # Select relevant columns
+    result_df = result_df.select("Department", "HighSatisfactionPercentage")
     
     return result_df
 

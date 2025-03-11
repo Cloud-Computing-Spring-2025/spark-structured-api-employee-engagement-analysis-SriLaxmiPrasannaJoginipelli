@@ -29,19 +29,20 @@ def identify_valued_no_suggestions(df):
     
     return valued_no_suggestions_count, round(proportion, 2)
 
-def write_output(number, proportion, output_path):
+def write_output_to_csv(number, proportion, output_path):
     """
-    Write the results to a text file in outputs/task2/valued_no_suggestions.txt.
+    Write the results to a CSV file in outputs/task2/valued_no_suggestions.csv.
     """
     # Ensure output directory exists
     os.makedirs(output_path, exist_ok=True)
-    
-    output_file = os.path.join(output_path, "valued_no_suggestions.txt")
 
-    # Write output to the file
-    with open(output_file, 'w') as f:
-        f.write(f"Number of Employees Feeling Valued without Suggestions: {number}\n")
-        f.write(f"Proportion: {proportion}%\n")
+    # Convert results into a Spark DataFrame
+    spark = SparkSession.builder.getOrCreate()
+    result_df = spark.createDataFrame([(number, f"{proportion}%")], ["Number of Employees Feeling Valued without Suggestions", "Proportion"])
+
+    # Save the output as a CSV file
+    output_file = os.path.join(output_path, "valued_no_suggestions.csv")
+    result_df.coalesce(1).write.mode("overwrite").option("header", "true").csv(output_file)
 
 def main():
     """
@@ -57,10 +58,10 @@ def main():
     df = load_data(spark, input_file)
     
     # Process data
-    number, proportion = identify_valued_no_suggestions(df)
+    number, proportion = identify_valued_no_suggestions(df)  # Unpack values
     
-    # Write output
-    write_output(number, proportion, output_directory)
+    # Write output as CSV
+    write_output_to_csv(number, proportion, output_directory)
     
     # Stop Spark
     spark.stop()
